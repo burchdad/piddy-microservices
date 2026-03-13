@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: piddy_postgres
+    environment:
+      POSTGRES_USER: piddy_user
+      POSTGRES_PASSWORD: piddy_secure_password
+      POSTGRES_DB: piddy_combined
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U piddy_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - piddy_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: piddy_redis
+    command: redis-server --requirepass piddy_redis_password
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - piddy_network
+
+  user-api:
+    build:
+      context: ./enhanced-api-phase1
+      dockerfile: Dockerfile
+    container_name: piddy_user_api
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_secure_password@postgres:5432/piddy_combined
+      REDIS_URL: redis://:piddy_redis_password@redis:6379/0
+      ENV: production
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - piddy_network
+
+  notification-service:
+    build:
+      context: ./enhanced-api-phase2
+      dockerfile: Dockerfile
+    container_name: piddy_notification_api
+    environment:
+      NOTIFICATION_DATABASE_URL: postgresql://piddy_user:piddy_secure_password@postgres:5432/piddy_combined
+      REDIS_URL: redis://:piddy_redis_password@redis:6379/1
+      ENV: production
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      user-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - piddy_network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: piddy_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@piddy.ai
+      PGADMIN_DEFAULT_PASSWORD: admin_password
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - piddy_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  piddy_network:
+    driver: bridge

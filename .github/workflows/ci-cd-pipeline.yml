@@ -1,0 +1,156 @@
+"""
+GitHub Actions CI/CD Pipeline Configuration
+
+Automated testing, building, and deployment for entire platform.
+"""
+
+name: Phase 1 & 2 - CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_API: piddy-user-api
+  IMAGE_NAME_NOTIF: piddy-notification-service
+
+jobs:
+  test-phase1:
+    name: Test Phase 1 (User API)
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: piddy_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      
+      - name: Install dependencies
+        run: |
+          cd enhanced-api-phase1
+          pip install -r requirements-phase1.txt
+      
+      - name: Run tests with coverage
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/piddy_test
+        run: |
+          cd enhanced-api-phase1
+          pytest --cov=. --cov-report=xml --cov-report=term
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./enhanced-api-phase1/coverage.xml
+
+
+  test-phase2:
+    name: Test Phase 2 (Notification Service)
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: piddy_notif_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+      redis:
+        image: redis:7-alpine
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      
+      - name: Install dependencies
+        run: |
+          cd enhanced-api-phase2
+          pip install -r requirements-phase2.txt
+      
+      - name: Run tests
+        run: |
+          cd enhanced-api-phase2
+          pytest --cov=. --cov-report=xml
+
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-phase1, test-phase2]
+    if: github.event_name == 'push'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Build and push User API
+        uses: docker/build-push-action@v4
+        with:
+          context: ./enhanced-api-phase1
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_API }}:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_API }}:${{ github.sha }}
+      
+      - name: Build and push Notification Service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./enhanced-api-phase2
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_NOTIF }}:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME_NOTIF }}:${{ github.sha }}
+
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to Staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add deployment steps here
+      
+      - name: Smoke Tests
+        run: |
+          echo "Running smoke tests..."
+          # Health checks and basic API tests
