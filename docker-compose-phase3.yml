@@ -116,14 +116,14 @@ services:
       LOG_LEVEL: INFO
       ENVIRONMENT: production
     ports:
-      - "8002:8002"
+      - "8002:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -166,12 +166,12 @@ services:
       LOG_LEVEL: INFO
       ENVIRONMENT: production
     ports:
-      - "8003:8003"
+      - "8003:8000"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -189,12 +189,12 @@ services:
       LOG_LEVEL: INFO
       ENVIRONMENT: production
     ports:
-      - "8004:8004"
+      - "8004:8000"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -212,12 +212,12 @@ services:
       LOG_LEVEL: INFO
       ENVIRONMENT: production
     ports:
-      - "8005:8005"
+      - "8005:8000"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
