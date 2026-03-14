@@ -1,96 +1,170 @@
-# Piddy Self-Growth Repository
+# Piddy Microservices Library
 
-This repository tracks Piddy's continuous learning, experimentation, and improvement journey. It serves as Piddy's knowledge commons for documenting patterns, insights, and capabilities discovered during operations.
+A comprehensive microservice architecture for the Piddy autonomous engineering platform. Each microservice is independently deployable, scalable, and focused on a single responsibility.
 
-## Repository Structure
+## 📦 Available Services
 
-### `/learning-logs`
-Structured logs documenting Piddy's insights from each session:
-- Session summaries
-- Key learnings about coding patterns
-- API design insights
-- Performance observations
-- Problem-solving approaches
+### **Service Branches** - Pull Individual Services
 
-### `/experiments`
-Experimental code and feature tests:
-- New integration approaches
-- Novel capabilities being tested
-- Performance optimization attempts
-- Tool enhancement prototypes
-- Cross-framework experiments
+Clone and deploy only the services you need:
 
-### `/patterns`
-Discovered architectural and coding patterns:
-- Reusable code patterns
-- Database schema patterns
-- API design patterns
-- Security patterns
-- Performance optimization patterns
-- Infrastructure-as-Code patterns
-
-### `/performance-metrics`
-Quantitative data about Piddy's capabilities:
-- Accuracy metrics by task type
-- Response time benchmarks
-- Code quality scores
-- Tool effectiveness ratings
-- Success rates by category
-
-### `/knowledge-base-sync`
-Synchronized knowledge from Piddy's connected knowledge bases:
-- Book excerpts and summaries
-- Documentation collections
-- Technical specifications
-- Framework best practices
-
-## Usage
-
-### For Piddy:
-1. Log insights and learnings in `/learning-logs`
-2. Experiment with new features in `/experiments`
-3. Document discovered patterns in `/patterns`
-4. Track performance improvements in `/performance-metrics`
-
-### For Developers:
-1. Review `/learning-logs` for insights Piddy has discovered
-2. Validate patterns in `/patterns` before adoption
-3. Monitor `/performance-metrics` to understand Piddy's capabilities
-4. Review experiments to see what features are in development
-
-## Getting Started
-
+#### **Phase 1: Core User Management**
 ```bash
-# Add a new learning log
-echo "Session date: $(date)" > learning-logs/session-$(date +%Y%m%d).md
+git clone -b service/user https://github.com/burchdad/piddy-microservices.git user-service
+```
+- **User Management API** (Port 8000)
+- JWT authentication with Argon2 password hashing
+- Role-based access control (RBAC)
+- Rate limiting and audit logging
+- Test coverage: 75%+
 
-# Review latest learnings
-ls -la learning-logs | tail -5
+#### **Phase 2: Notifications**
+```bash
+git clone -b service/notifications https://github.com/burchdad/piddy-microservices.git notification-service
+```
+- **Notification Service** (Port 8001)
+- Multi-channel delivery (Email, SMS, Push)
+- SendGrid + SMTP with auto-failover
+- Redis-based async task queue
+- User preferences and delivery tracking
+- Test coverage: 85%+
 
-# Check performance data
-cat performance-metrics/accuracy.json
+#### **Phase 3: Enterprise Features**
 
-# Browse discovered patterns
-ls patterns/
+**Authentication Service**
+```bash
+git clone -b service/auth https://github.com/burchdad/piddy-microservices.git auth-service
+```
+- **Authentication Service** (Port 8002)
+- OAuth2 (Google, GitHub, Microsoft, Okta)
+- SAML single sign-on
+- Multi-factor authentication (TOTP, SMS, Email)
+- Session management with audit logging
+
+**API Gateway**
+```bash
+git clone -b service/gateway https://github.com/burchdad/piddy-microservices.git api-gateway
+```
+- **API Gateway** (Port 8100)
+- Central request routing
+- Dynamic rate limiting
+- CORS and request forwarding
+- Service discovery and health monitoring
+
+**Email Service**
+```bash
+git clone -b service/email https://github.com/burchdad/piddy-microservices.git email-service
+```
+- **Email Service** (Port 8003)
+- HTML and plain text emails
+- Template system with variable substitution
+- Batch email sending
+- Scheduled delivery and tracking
+
+**SMS Service**
+```bash
+git clone -b service/sms https://github.com/burchdad/piddy-microservices.git sms-service
+```
+- **SMS Service** (Port 8004)
+- Twilio/Vonage integration
+- OTP generation and verification
+- Batch SMS support
+- Phone validation and delivery tracking
+
+**Push Notification Service**
+```bash
+git clone -b service/push https://github.com/burchdad/piddy-microservices.git push-service
+```
+- **Push Service** (Port 8005)
+- FCM (Firebase) for Android
+- APNS for iOS
+- Device token management
+- Batch and rich push notifications
+
+## 🚀 Quick Start
+
+### Option 1: Single Service
+```bash
+git clone -b service/user https://github.com/burchdad/piddy-microservices.git
+cd enhanced-api-phase1
+pip install -r requirements-phase1.txt
+export DATABASE_URL=postgresql://...
+python routes.py
 ```
 
-## Integration with Main Piddy
+### Option 2: All Services (Docker Compose)
+```bash
+git clone -b hybrid-phase-1-2 https://github.com/burchdad/piddy-microservices.git
+docker-compose -f docker-compose-phase3.yml up
+```
 
-This repository is meant to be:
-- Cloned alongside the main Piddy repo
-- Updated via Piddy's autonomous learning system
-- Referenced in Piddy's decision-making processes
-- Periodically reviewed for pattern promotion to main codebase
+### Option 3: Custom Mix
+```bash
+git clone -b service/user https://github.com/burchdad/piddy-microservices.git user-api
+git clone -b service/auth https://github.com/burchdad/piddy-microservices.git auth-svc
+git clone -b service/email https://github.com/burchdad/piddy-microservices.git email-svc
+```
 
-## Self-Improvement Workflow
+## 📋 Branch Structure
 
-1. **Experience** - Piddy completes task X
-2. **Learn** - Creates entry in learning-logs capturing insights
-3. **Experiment** - Tests improvements in experiments/
-4. **Measure** - Records performance metrics
-5. **Improve** - Incorporates successful patterns into main codebase
+| Branch | Purpose | Content |
+|--------|---------|---------|
+| `main` | Library Overview | This README |
+| `service/user` | User API | Phase 1 |
+| `service/notifications` | Notifications | Phase 2 |
+| `service/auth` | Authentication | Phase 3 Auth |
+| `service/gateway` | API Gateway | Phase 3 Gateway |
+| `service/email` | Email Service | Phase 3 Email |
+| `service/sms` | SMS Service | Phase 3 SMS |
+| `service/push` | Push Service | Phase 3 Push |
+| `hybrid-phase-1-2` | Full Stack | Reference/Testing |
+
+## 🔧 Technology Stack
+
+- **Framework:** FastAPI
+- **Database:** PostgreSQL
+- **Cache/Queue:** Redis
+- **Container:** Docker
+- **Password Hashing:** Argon2
+- **Auth:** JWT + OAuth2
+- **Testing:** pytest (75%+ coverage)
+
+## 📊 Performance Targets
+
+| Service | Memory | CPU | Max RPS | Response |
+|---------|--------|-----|---------|----------|
+| User API | 512MB | 2c | 500 | 100-200ms |
+| Gateway | 128MB | 1c | 5000 | 10-50ms |
+| Auth | 256MB | 1c | 500 | 100-200ms |
+| Email | 256MB | 1c | 1000 | 100-300ms |
+| SMS | 256MB | 1c | 1000 | 100-300ms |
+| Push | 256MB | 1c | 2000 | 50-150ms |
+
+## ✨ Key Features
+
+✅ Microservices architecture
+✅ Independent databases per service
+✅ OAuth2 with 4+ providers
+✅ Multi-factor authentication
+✅ Multi-channel notifications
+✅ API gateway with rate limiting
+✅ Async task processing
+✅ Comprehensive test coverage
+✅ Production-ready Docker builds
+✅ Health checks and metrics
+
+## 🤝 Contributing
+
+1. Clone a service: `git clone -b service/SERVICE_NAME`
+2. Make changes
+3. Run tests: `pytest --cov`
+4. Commit and push
+5. Create pull request
+
+## 📄 License
+
+Proprietary - Piddy Autonomous Engineering Platform
 
 ---
 
-**Last Updated**: March 13, 2026
-**Piddy Version**: 0.1.0+Growth
+**Status:** Production Ready | **Last Updated:** March 14, 2026
