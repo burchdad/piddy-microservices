@@ -1,0 +1,231 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # Databases
+  # ============================================================================
+  
+  postgres:
+    image: postgres:16-alpine
+    container_name: piddy-postgres
+    environment:
+      POSTGRES_USER: piddy
+      POSTGRES_PASSWORD: piddy_secure_pwd
+      POSTGRES_MULTIPLE_DATABASES: piddy_auth,piddy_email,piddy_sms,piddy_push
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U piddy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: piddy-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================================
+  # Phase 1 & 2 Services (Production)
+  # ============================================================================
+
+  user-api:
+    build:
+      context: ./enhanced-api-phase1
+      dockerfile: Dockerfile
+    container_name: piddy-user-api
+    environment:
+      DATABASE_URL: postgresql://piddy:piddy_secure_pwd@postgres:5432/piddy
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: your_jwt_secret_here_change_in_production
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  notification-api:
+    build:
+      context: ./enhanced-api-phase2
+      dockerfile: Dockerfile
+    container_name: piddy-notification-api
+    environment:
+      DATABASE_URL: postgresql://piddy:piddy_secure_pwd@postgres:5432/piddy
+      REDIS_URL: redis://redis:6379/1
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-sg_test_key}
+      SMTP_SERVER: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # Phase 3 Services (Core)
+  # ============================================================================
+
+  auth-service:
+    build:
+      context: ./enhanced-api-phase3-auth
+      dockerfile: Dockerfile
+    container_name: piddy-auth-service
+    environment:
+      DATABASE_URL_AUTH: postgresql://piddy:piddy_secure_pwd@postgres:5432/piddy_auth
+      REDIS_URL: redis://redis:6379/2
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET}
+      OKTA_DOMAIN: ${OKTA_DOMAIN}
+      OKTA_CLIENT_ID: ${OKTA_CLIENT_ID}
+      OKTA_CLIENT_SECRET: ${OKTA_CLIENT_SECRET}
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
+    ports:
+      - "8002:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  api-gateway:
+    build:
+      context: ./enhanced-api-phase3-gateway
+      dockerfile: Dockerfile
+    container_name: piddy-api-gateway
+    environment:
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
+    ports:
+      - "8100:8100"
+    depends_on:
+      - user-api
+      - notification-api
+      - auth-service
+      - email-service
+      - sms-service
+      - push-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  email-service:
+    build:
+      context: ./enhanced-api-phase3-email
+      dockerfile: Dockerfile
+    container_name: piddy-email-service
+    environment:
+      DATABASE_URL: postgresql://piddy:piddy_secure_pwd@postgres:5432/piddy_email
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY}
+      SMTP_SERVER: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
+    ports:
+      - "8003:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  sms-service:
+    build:
+      context: ./enhanced-api-phase3-sms
+      dockerfile: Dockerfile
+    container_name: piddy-sms-service
+    environment:
+      DATABASE_URL: postgresql://piddy:piddy_secure_pwd@postgres:5432/piddy_sms
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE: ${TWILIO_PHONE}
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
+    ports:
+      - "8004:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  push-service:
+    build:
+      context: ./enhanced-api-phase3-push
+      dockerfile: Dockerfile
+    container_name: piddy-push-service
+    environment:
+      DATABASE_URL: postgresql://piddy:piddy_secure_pwd@postgres:5432/piddy_push
+      FCM_CREDENTIALS_JSON: ${FCM_CREDENTIALS_JSON}
+      APNS_CERTIFICATE: ${APNS_CERTIFICATE}
+      APNS_KEY: ${APNS_KEY}
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
+    ports:
+      - "8005:8005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: piddy-network
