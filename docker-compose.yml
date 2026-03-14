@@ -1,0 +1,690 @@
+version: '3.8'
+
+services:
+  # Core Infrastructure
+  postgres:
+    image: postgres:16-alpine
+    container_name: piddy-postgres
+    environment:
+      POSTGRES_USER: piddy_user
+      POSTGRES_PASSWORD: piddy_password
+      POSTGRES_DB: piddy_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U piddy_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - piddy-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: piddy-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - piddy-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.0.0
+    container_name: piddy-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - piddy-network
+
+  # Phase 1: Foundation
+  user-api:
+    build:
+      context: ./enhanced-api-phase1
+      dockerfile: Dockerfile
+    container_name: piddy-user-api
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Phase 2: Notifications
+  notifications:
+    build:
+      context: ./enhanced-api-phase2
+      dockerfile: Dockerfile
+    container_name: piddy-notifications
+    ports:
+      - "8002:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Phase 3: Core Services
+  auth:
+    build:
+      context: ./enhanced-api-phase3-auth
+      dockerfile: Dockerfile
+    container_name: piddy-auth
+    ports:
+      - "8003:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  email:
+    build:
+      context: ./enhanced-api-phase3-email
+      dockerfile: Dockerfile
+    container_name: piddy-email
+    ports:
+      - "8004:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  sms:
+    build:
+      context: ./enhanced-api-phase3-sms
+      dockerfile: Dockerfile
+    container_name: piddy-sms
+    ports:
+      - "8005:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  push:
+    build:
+      context: ./enhanced-api-phase3-push
+      dockerfile: Dockerfile
+    container_name: piddy-push
+    ports:
+      - "8006:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  gateway:
+    build:
+      context: ./enhanced-api-phase3-gateway
+      dockerfile: Dockerfile
+    container_name: piddy-gateway
+    ports:
+      - "8100:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Phase 4: Infrastructure Services
+  event-bus:
+    build:
+      context: ./enhanced-api-phase4-event-bus
+      dockerfile: Dockerfile
+    container_name: piddy-event-bus
+    ports:
+      - "8107:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  notification-hub:
+    build:
+      context: ./enhanced-api-phase4-notification-hub
+      dockerfile: Dockerfile
+    container_name: piddy-notification-hub
+    ports:
+      - "8106:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  webhook:
+    build:
+      context: ./enhanced-api-phase4-webhook
+      dockerfile: Dockerfile
+    container_name: piddy-webhook
+    ports:
+      - "8108:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  task-queue:
+    build:
+      context: ./enhanced-api-phase4-task-queue
+      dockerfile: Dockerfile
+    container_name: piddy-task-queue
+    ports:
+      - "8109:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  secrets:
+    build:
+      context: ./enhanced-api-phase4-secrets
+      dockerfile: Dockerfile
+    container_name: piddy-secrets
+    ports:
+      - "8110:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Phase 5: Analytics & Business Services
+  analytics:
+    build:
+      context: ./enhanced-api-phase5-analytics
+      dockerfile: Dockerfile
+    container_name: piddy-analytics
+    ports:
+      - "8111:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  pipeline:
+    build:
+      context: ./enhanced-api-phase5-pipeline
+      dockerfile: Dockerfile
+    container_name: piddy-pipeline
+    ports:
+      - "8112:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  messaging:
+    build:
+      context: ./enhanced-api-phase5-messaging
+      dockerfile: Dockerfile
+    container_name: piddy-messaging
+    ports:
+      - "8113:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  payment:
+    build:
+      context: ./enhanced-api-phase5-payment
+      dockerfile: Dockerfile
+    container_name: piddy-payment
+    ports:
+      - "8114:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  subscription:
+    build:
+      context: ./enhanced-api-phase5-subscription
+      dockerfile: Dockerfile
+    container_name: piddy-subscription
+    ports:
+      - "8115:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Phase 6: Enterprise Services
+  search:
+    build:
+      context: ./enhanced-api-phase6-search
+      dockerfile: Dockerfile
+    container_name: piddy-search
+    ports:
+      - "8116:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  crm:
+    build:
+      context: ./enhanced-api-phase6-crm
+      dockerfile: Dockerfile
+    container_name: piddy-crm
+    ports:
+      - "8117:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  cms:
+    build:
+      context: ./enhanced-api-phase6-cms
+      dockerfile: Dockerfile
+    container_name: piddy-cms
+    ports:
+      - "8118:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  storage:
+    build:
+      context: ./enhanced-api-phase6-storage
+      dockerfile: Dockerfile
+    container_name: piddy-storage
+    ports:
+      - "8119:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  monitoring:
+    build:
+      context: ./enhanced-api-phase6-monitoring
+      dockerfile: Dockerfile
+    container_name: piddy-monitoring
+    ports:
+      - "8120:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Phase 7: AI/ML & Advanced Services
+  recommendation:
+    build:
+      context: ./enhanced-api-phase7-recommendation
+      dockerfile: Dockerfile
+    container_name: piddy-recommendation
+    ports:
+      - "8121:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  document-manager:
+    build:
+      context: ./enhanced-api-phase7-document-manager
+      dockerfile: Dockerfile
+    container_name: piddy-document-manager
+    ports:
+      - "8122:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  report-builder:
+    build:
+      context: ./enhanced-api-phase7-report-builder
+      dockerfile: Dockerfile
+    container_name: piddy-report-builder
+    ports:
+      - "8123:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  ml-inference:
+    build:
+      context: ./enhanced-api-phase7-ml-inference
+      dockerfile: Dockerfile
+    container_name: piddy-ml-inference
+    ports:
+      - "8124:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  social:
+    build:
+      context: ./enhanced-api-phase7-social
+      dockerfile: Dockerfile
+    container_name: piddy-social
+    ports:
+      - "8125:8000"
+    environment:
+      DATABASE_URL: postgresql://piddy_user:piddy_password@postgres:5432/piddy_db
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - piddy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+
+networks:
+  piddy-network:
+    driver: bridge
